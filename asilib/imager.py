@@ -9,6 +9,8 @@ import pandas as pd
 from asilib.io.load import _validate_time_range  # Or
 # import asilib.io.load._validate_time_range as _validate_time_range
 
+import asilib
+from datetime import datetime
 
 class Imager:
     """
@@ -27,9 +29,9 @@ class Imager:
     ----------
     array_attributes: pd.DataFrame
         A table of array imagers and their locations
-    data_avaliability: pd.DataFrame
-        A table of data avaliability with station codes for the index and time for columns.
-        The table values are yes for avaliable data and no for unavailable data (doesn't exist).
+    data_availability: pd.DataFrame
+        A table of data availability with station codes for the index and time for columns.
+        The table values are yes for available data and no for unavailable data (doesn't exist).
     data: dict  
         A dictionary full of ASI time stamps and images
         # TODO: Think about how to store self.data for:
@@ -88,6 +90,21 @@ class Imager:
         # download_themis_img, download_themis_cal,
         # depending on the user-specified array. 
         # Since the calibration data 
+
+        if self.array == 'THEMIS':
+            from asilib.io.download_themis import download_themis_cal
+            from asilib.io.download_themis import download_themis_img
+        
+        elif self.array == 'REGO':
+            from asilib.io.download_rego import download_rego_cal
+            from asilib.io.download_rego import download_rego_img
+
+        elif self.array == None:
+            from asilib.io.download_themis import download_themis_cal
+            from asilib.io.download_themis import download_themis_img
+            from asilib.io.download_rego import download_rego_cal
+            from asilib.io.download_rego import download_rego_img
+
         return
 
     def load(self, time_range=None):
@@ -109,7 +126,38 @@ class Imager:
         # downloaded data into an self.data_avaliability pd.DataFrame that 
         # can be accessed by running print(Imager), or str(Imager). We will
         # need to think carefully on how to load the data to be preserve 
-        # computer resources.  
+        # computer resources.
+
+        # try this time for testing: 2008-03-09T04:39:00
+
+        self._check_time_range_exists(time_range)  
+        
+        if self.stations == None:
+
+            times, frames = asilib.io.load.get_frames(self.array, self.stations)
+            cal = asilib.io.load.load_cal()
+            self.data = {}
+            self.cal = {}
+            
+            for station in self.array_attributes:
+                asilib.io.load.get_frames(time_range, self.array, self.stations)
+                #used pd.date_range() for 'times' in self.data[station]
+                self.data[station].append({'times':pd.date_range(start=times[0], end=times[-1], freq='D'), 'frames':frames})
+                self.cal[station].append({'cal':cal})
+
+        
+        else:
+
+            times, frames = asilib.io.load.get_frames(self.time_range, self.array, self.stations)
+            cal = asilib.io.load.load_cal(self.array, self.stations)
+            #switched self.data from dict to list of dict for pd.DataFrame functionality
+            self.data = [{'times':pd.date_range(start=times[0], end=times[-1], freq='D'), 'frames':frames}]
+            self.cal = {'cal':cal}
+        
+        self.data_availability = pd.DataFrame(data = self.data)
+        print(self.data_availability.to_csv())
+
+            
         return
 
     def plot(self, type, ax=None):
@@ -141,7 +189,7 @@ class Imager:
         s = (f"{self.array} Imager\nstations={self.stations}\n"
             f"time_range={self.time_range}")
         if hasattr(self, 'data_avaliability'):
-            s += f"\ndata_avaliability:\n{self.data_avaliability}"
+            s += f"\ndata_avaliability:\n{self.data_availability}"
         return s
 
     def _load_array_attributes(self):
@@ -154,11 +202,11 @@ class Imager:
         self.array_attributes
         """
 
-        # TODO: Step 1: this method should load asilib/data/asi_stations.csv into a 
-        # self.array_attributes pd.DataFrame. Then filter by camera array (self.array 
-        # attribute). Add checks to make the filtering case insensitive (use str.upper() 
-        # or str.lower())
-        return
+        self.array_attributes = pd.read_csv('asilib/data/asi_stations.csv')
+        self.array_attributes = self.array_attributes.loc[self.array_attributes['array'].str.upper() == self.array]
+        self.array_attributes.reset_index(inplace=True)
+        
+        return self.array_attributes
 
     def _check_array_code(self):
         """
@@ -183,7 +231,7 @@ class Imager:
                 f'are not in {self.array_attributes["station"]}')
         
         else:
-            assert self.station in self.array_attributes['station'], (f'{self.stations} not in '
+            assert self.station.upper() in self.array_attributes['station'], (f'{self.stations} not in '
                 f'{self.array_attributes["station"]}')
         return
 
@@ -197,8 +245,10 @@ class Imager:
         return
 
 if __name__ == '__main__':
-    im = Imager('THEMIS', ['GILL', 'RANK'])
+    im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
 
     repr(im)
-    print()
+#    print()
     print(im)
+
+    im.load()
