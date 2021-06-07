@@ -4,6 +4,7 @@ The Imager class handles the ASI data downloading, loading, analyzing, and plott
 
 supported_arrays = ['REGO', 'THEMIS']
 
+from numpy import NaN
 import pandas as pd
 
 from asilib.io.load import _validate_time_range  # Or
@@ -128,34 +129,60 @@ class Imager:
         # need to think carefully on how to load the data to be preserve 
         # computer resources.
 
-        # try this time for testing: 2008-03-09T04:39:00
+        from asilib.io.load import get_frames
+        from asilib.io.load import load_cal
 
         self._check_time_range_exists(time_range)  
         
-        if self.stations == None:
+        self.data = {}
 
-            times, frames = asilib.io.load.get_frames(self.array, self.stations)
-            cal = asilib.io.load.load_cal()
-            self.data = {}
-            self.cal = {}
+        if self.stations is None:
             
-            for station in self.array_attributes:
-                asilib.io.load.get_frames(time_range, self.array, self.stations)
-                #used pd.date_range() for 'times' in self.data[station]
-                self.data[station].append({'times':pd.date_range(start=times[0], end=times[-1], freq='D'), 'frames':frames})
-                self.cal[station].append({'cal':cal})
+            for station in self.array_attributes['station']:
+                
+                try:
+                    times, frames = get_frames(self.time_range, self.array, station)
+                except FileNotFoundError as err:
+                    if 'ASI data not found for station' in str(err):
+                        continue
+                    else:
+                        raise
+
+                cal = load_cal(self.array, station)
+                self.data[station] = {'times':times, 'frames':frames, 'cal':cal}
 
         
         else:
 
-            times, frames = asilib.io.load.get_frames(self.time_range, self.array, self.stations)
-            cal = asilib.io.load.load_cal(self.array, self.stations)
-            #switched self.data from dict to list of dict for pd.DataFrame functionality
-            self.data = [{'times':pd.date_range(start=times[0], end=times[-1], freq='D'), 'frames':frames}]
-            self.cal = {'cal':cal}
+            if hasattr(self.stations, '__len__'):
+
+                for station in self.stations:
+                    try:
+                        times, frames = get_frames(self.time_range, self.array, station)
+                    except FileNotFoundError as err:
+                        if 'ASI data not found for station' in str(err):
+                            continue
+                        else:
+                            raise
+
+                    cal = load_cal(self.array, station)
+                    self.data[station] = {'times':times, 'frames':frames, 'cal':cal}
+            else:
+                
+                try:
+                    times, frames = get_frames(self.time_range, self.array, self.stations)
+                except FileNotFoundError as err:
+                    if 'ASI data not found for station' in str(err):
+                        continue
+                    else:
+                        raise
+
+                cal = load_cal(self.array, self.stations)
+                self.data[self.stations] = {'times':times, 'frames':frames, 'cal':cal}
         
-        self.data_availability = pd.DataFrame(data = self.data)
-        print(self.data_availability.to_csv())
+        self.data_availability = pd.DataFrame(index = self.data.keys(), columns = pd.date_range(start=self.time_range[0], end=self.time_range[-1], freq='H'))
+
+        print(self.data_availability)
 
             
         return
@@ -245,10 +272,11 @@ class Imager:
         return
 
 if __name__ == '__main__':
-    im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
-
+    #im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', ['GILL'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', ['GILL', 'FSMI'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    im = Imager('THEMIS', stations = None, time_range = [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
     repr(im)
-#    print()
     print(im)
 
     im.load()
