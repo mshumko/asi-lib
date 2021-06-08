@@ -154,8 +154,21 @@ class Imager:
         
         else:
 
-            if hasattr(self.stations, '__len__'):
+            if isinstance(self.stations, str):
 
+                try:
+                    times, frames = get_frames(self.time_range, self.array, self.stations)
+                except FileNotFoundError as err:
+                    if 'ASI data not found for station' in str(err):
+                        pass
+                    else:
+                        raise
+
+                cal = load_cal(self.array, self.stations)
+                self.data[self.stations] = {'times':times, 'frames':frames, 'cal':cal}
+
+            elif hasattr(self.stations, '__len__'):
+                
                 for station in self.stations:
                     try:
                         times, frames = get_frames(self.time_range, self.array, station)
@@ -167,24 +180,11 @@ class Imager:
 
                     cal = load_cal(self.array, station)
                     self.data[station] = {'times':times, 'frames':frames, 'cal':cal}
-            else:
-                
-                try:
-                    times, frames = get_frames(self.time_range, self.array, self.stations)
-                except FileNotFoundError as err:
-                    if 'ASI data not found for station' in str(err):
-                        continue
-                    else:
-                        raise
-
-                cal = load_cal(self.array, self.stations)
-                self.data[self.stations] = {'times':times, 'frames':frames, 'cal':cal}
         
         self.data_availability = pd.DataFrame(index = self.data.keys(), columns = pd.date_range(start=self.time_range[0], end=self.time_range[-1], freq='H'))
 
         print(self.data_availability)
-
-            
+  
         return
 
     def plot(self, type, ax=None):
