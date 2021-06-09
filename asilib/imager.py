@@ -4,7 +4,7 @@ The Imager class handles the ASI data downloading, loading, analyzing, and plott
 
 supported_arrays = ['REGO', 'THEMIS']
 
-from numpy import NaN
+import numpy as np
 import pandas as pd
 
 from asilib.io.load import _validate_time_range  # Or
@@ -117,17 +117,6 @@ class Imager:
         time_range: list , optional
             The start and end time to download the ASI data. 
         """
-        # TODO: Step 2: This method will load the requested ASI data.
-        # If self.stations is None, reference the self.array_attributes
-        # pd.DataFrame and load the data from all possible stations. 
-        # Errors will arise when data is unavailable and we will have to 
-        # catch them. Once load() has been called, save the ASI data to 
-        # self.data, and the calibration data to self.cal. Functions in
-        # asilib.io.load will be called from here, and we will save the
-        # downloaded data into an self.data_avaliability pd.DataFrame that 
-        # can be accessed by running print(Imager), or str(Imager). We will
-        # need to think carefully on how to load the data to be preserve 
-        # computer resources.
 
         from asilib.io.load import get_frames
         from asilib.io.load import load_cal
@@ -156,19 +145,12 @@ class Imager:
 
             if isinstance(self.stations, str):
 
-                try:
-                    times, frames = get_frames(self.time_range, self.array, self.stations)
-                except FileNotFoundError as err:
-                    if 'ASI data not found for station' in str(err):
-                        pass
-                    else:
-                        raise
+                self.stations = [self.stations]
 
-                cal = load_cal(self.array, self.stations)
-                self.data[self.stations] = {'times':times, 'frames':frames, 'cal':cal}
-
-            elif hasattr(self.stations, '__len__'):
+            else:
                 
+                self.stations = list(self.stations)
+
                 for station in self.stations:
                     try:
                         times, frames = get_frames(self.time_range, self.array, station)
@@ -182,6 +164,20 @@ class Imager:
                     self.data[station] = {'times':times, 'frames':frames, 'cal':cal}
         
         self.data_availability = pd.DataFrame(index = self.data.keys(), columns = pd.date_range(start=self.time_range[0], end=self.time_range[-1], freq='H'))
+
+        self.data_availability.replace(np.nan, '-', inplace=True)
+
+        #for loop through self.data.keys() for times, for loop check each hour for data, try and extract any data between any two hours
+        #pandas dataframe replace in timestamp format (pandas.Timestamp.replace) replace everything after hour with zeroes
+        #pandas.unique -> gives all unique values in the array, use through all stations
+        #***BASIC IDEA***: loop through the stations, loop through their timestamps, if there is data, put into the dataframe and say it's loaded
+
+        #for station in self.data.keys():
+        #    for timestamp in pd.unique(self.data[station]['times']):
+        #        pd.Timestamp.replace()
+        #    for frame in self.data[station]['frames']:
+        #        self.data_availability = 
+
 
         print(self.data_availability)
   
@@ -272,10 +268,10 @@ class Imager:
         return
 
 if __name__ == '__main__':
-    #im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
-    #im = Imager('THEMIS', ['GILL'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', ['UKIA'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
     #im = Imager('THEMIS', ['GILL', 'FSMI'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
-    im = Imager('THEMIS', stations = None, time_range = [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', stations = None, time_range = [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
     repr(im)
     print(im)
 
