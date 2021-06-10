@@ -7,8 +7,7 @@ supported_arrays = ['REGO', 'THEMIS']
 import numpy as np
 import pandas as pd
 
-from asilib.io.load import _validate_time_range  # Or
-# import asilib.io.load._validate_time_range as _validate_time_range
+from asilib.io.load import _validate_time_range
 
 import asilib
 from datetime import datetime
@@ -163,21 +162,31 @@ class Imager:
                     cal = load_cal(self.array, station)
                     self.data[station] = {'times':times, 'frames':frames, 'cal':cal}
         
-        self.data_availability = pd.DataFrame(index = self.data.keys(), columns = pd.date_range(start=self.time_range[0], end=self.time_range[-1], freq='H'))
+        self.data_availability_dates = pd.date_range(start=self.time_range[0], end=self.time_range[-1], freq='H')
+
+        self.data_availability_dates = [t_i.replace(minute=0, second=0, microsecond=0) for t_i in self.data_availability_dates]
+
+        #self.data_availability should only contain strings as its "data" -> 'Loaded' and '-', nothing else
+        self.data_availability = pd.DataFrame(index = self.data.keys(), columns = self.data_availability_dates)
 
         self.data_availability.replace(np.nan, '-', inplace=True)
 
-        #for loop through self.data.keys() for times, for loop check each hour for data, try and extract any data between any two hours
-        #pandas dataframe replace in timestamp format (pandas.Timestamp.replace) replace everything after hour with zeroes
-        #pandas.unique -> gives all unique values in the array, use through all stations
-        #***BASIC IDEA***: loop through the stations, loop through their timestamps, if there is data, put into the dataframe and say it's loaded
+        '''
+        for loop through self.data.keys() for times, for loop check each hour for data, extract any data between any two hours
+        pandas dataframe replace in timestamp format (pandas.Timestamp.replace) replace everything after hour with zeroes
+        pandas.unique -> gives all unique values in the array, use through all stations
+        ***BASIC IDEA***: loop through the stations, loop through their timestamps, if there is data, say it's 'Loaded' and put into df
+        '''
 
-        #for station in self.data.keys():
-        #    for timestamp in pd.unique(self.data[station]['times']):
-        #        pd.Timestamp.replace()
-        #    for frame in self.data[station]['frames']:
-        #        self.data_availability = 
+        for station in self.data[station]:
+            zeroed_times = [t_i.replace(minute=0, second=0, microsecond=0) for t_i in self.data[station]['times']]
+            unique_hours = pd.to_datetime(sorted(set(zeroed_times)))
+            self.data_availability.loc[station, unique_hours] = 'Loaded'
 
+        #     for frame in self.data[station]['frames']:
+        #         self.data_availability.replace(frame, 'Loaded', inplace=True)
+
+        #print(self.data)
 
         print(self.data_availability)
   
@@ -207,12 +216,12 @@ class Imager:
     def __str__(self):
         """
         Return a human-readable representation of this object containing:
-        the array, stations, time_range, and data_avaliability.
+        the array, stations, time_range, and data_availability.
         """
         s = (f"{self.array} Imager\nstations={self.stations}\n"
             f"time_range={self.time_range}")
-        if hasattr(self, 'data_avaliability'):
-            s += f"\ndata_avaliability:\n{self.data_availability}"
+        if hasattr(self, 'data_availability'):
+            s += f"\ndata_availability:\n{self.data_availability}"
         return s
 
     def _load_array_attributes(self):
@@ -268,9 +277,9 @@ class Imager:
         return
 
 if __name__ == '__main__':
-    im = Imager('THEMIS', 'GILL', [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
-    #im = Imager('THEMIS', ['UKIA'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
-    #im = Imager('THEMIS', ['GILL', 'FSMI'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', ['GILL'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    #im = Imager('THEMIS', ['RANK'], [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
+    im = Imager('THEMIS', ['GILL', 'RANK'], [datetime(2008, 3, 9, 4, 57), datetime(2008, 3, 9, 5, 2)])
     #im = Imager('THEMIS', stations = None, time_range = [datetime(2008, 3, 9, 4, 39), datetime(2008, 3, 9, 4, 40)])
     repr(im)
     print(im)
